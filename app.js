@@ -73,6 +73,9 @@ TZ = "Asia/Calcutta";
 app.use(express.static(path.resolve("./images")));
 app.use("/images", express.static(path.resolve("./images")));
 
+app.use(express.static(path.resolve("./audio_files")));
+app.use("/audio_files" , express.static(path.resolve("./audio_files")));
+
 // Student Routers
 const adminRoute = require("./routes/admin");
 app.use("/admin", adminRoute);

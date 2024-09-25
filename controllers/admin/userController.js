@@ -21,7 +21,7 @@ module.exports.getAll = async (req, res, next) => {
   let v;
   v = new Validator(req.body, {
     page: "required|integer|between:1,1000",
-    search: "alpha",
+    search: "alpha" , 
   });
 
   let matched = await v.check();

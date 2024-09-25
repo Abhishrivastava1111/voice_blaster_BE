@@ -48,10 +48,29 @@ const storageEngine = multer.diskStorage({
     // cb(null, `${Date.now()}`);
   },
 });
+
+
 //initializing multer
 const upload = multer({
   storage: storageEngine,
 });
+
+
+
+//code by grvbng7
+const audioStorageEngine = multer.diskStorage({
+  destination: "./audio_files",
+  filename: (req, file, cb) => {
+      cb(null, `${Date.now()}.mp3`);
+  },
+});
+
+const  uploadAudio = multer({
+  storage: audioStorageEngine,
+});
+
+
+
 
 // const upload = multer({ dest: "./images" });
 
@@ -120,11 +139,27 @@ router.post(
   authMiddleWare.adminAuthentication,
   sendMessageController.getAllSendMessage
 );
+
+router.post(
+  "/getAllAudiosDetails",
+  authMiddleWare.adminAuthentication,
+  sendMessageController.getAllAudiosDetails
+);
+
+router.post(
+  "/changeAudioStatus",
+  authMiddleWare.adminAuthentication,
+  sendMessageController.changeAudioStatus
+);
+
+
+
 router.post(
   "/getAllLetestMessage",
   authMiddleWare.adminAuthentication,
   sendMessageController.getAllLetestMessage
 );
+
 router.post(
   "/getAllUserSendMessage",
   authMiddleWare.authenticateToken,
@@ -132,9 +167,27 @@ router.post(
 );
 
 router.post(
+  "/getUserAudios",
+  authMiddleWare.authenticateToken,
+  sendMessageController.getUserAudios
+);
+
+router.get(
+  "/getUserApprovedAudios" ,
+  authMiddleWare.authenticateToken,
+  sendMessageController.getUserApprovedAudios
+);
+
+router.post(
+  "/getAudioApproval",
+  authMiddleWare.authenticateToken,
+  uploadAudio.single("audio") ,  
+  sendMessageController.getAudioApproval
+);
+
+router.post(
   "/addSendMessage",
   authMiddleWare.authenticateToken,
-  upload.single("audio"),
   sendMessageController.addSendMessage
 );
 

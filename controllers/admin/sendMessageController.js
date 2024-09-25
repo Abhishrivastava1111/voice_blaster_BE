@@ -1,6 +1,7 @@
 const constants = require("../../config/constant");
 const response = require("../../config/response");
 const SendMessage = require("../../models/SendMessage");
+const AudioFile = require("../../models/AudioFile");
 const { path, dirname } = require("path");
 const { Validator } = require("node-input-validator");
 const helper = require("../../helper/hlp_common");
@@ -13,6 +14,82 @@ const http = require("http");
 const axios = require("axios");
 const User = require("../../models/User");
 const WhiteList = require("../../models/WhiteList");
+
+
+module.exports.changeAudioStatus = async (req, res, next) => {
+  //status: constants.CONST_DB_STATUS_ACTIVE
+  // const getList = await SendMessage.find();
+
+  const audio_id = req.body.audio_id;
+  const modifiedStatus = req.body.modified_status;
+  const currentTimeStamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Calcutta" });
+  AudioFile.updateOne({ audio_id: audio_id }, { $set: { status: modifiedStatus, admin_action_date: currentTimeStamp } })
+    .then(result => {
+      console.log(result);
+      return response.returnTrue(
+        req,
+        res,
+        "record updated",
+      );
+    })
+    .catch(error => {
+      console.error(error);
+      return response.returnFalse(req, res, "update record failed");
+    });
+} // end of changeAudioStatus
+
+
+
+
+
+
+module.exports.getAllAudiosDetails = async (req, res, next) => {
+
+  const page = parseInt(req.body.page);
+  const limit = parseInt(req.body.limit);
+  const skip = (page - 1) * limit;
+  const statusFilter = req.body.statusFilter == "all" ? {} : { status: req.body.statusFilter };
+
+  const getAudioList = await AudioFile.aggregate([
+    {
+      $match: statusFilter
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "uploaded_by",
+        foreignField: "_id",
+        as: "uploaded_by_user",
+      },
+    },
+    { $unwind: '$uploaded_by_user' },
+    { $project: { 'audio_id': 1, 'audio_file_display_name': 1, 'audio_file': 1, 'status': 1, 'upload_date': 1, 'uploaded_by_user.name': 1, 'uploaded_by_user.email': 1, 'uploaded_by_user.mobile_no': 1 } },
+    { $sort: { upload_date: -1 } },
+    { $limit: skip + limit },
+    { $skip: skip },
+  ]);
+
+  if (getAudioList.length > 0) {
+
+    const count = await AudioFile.countDocuments();
+    let resData = {
+      data: getAudioList,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    };
+
+    console.log(getAudioList);
+    return response.returnTrue(
+      req,
+      res,
+      "record found",
+      resData
+    );
+  } else {
+    return response.returnFalse(req, res, res.translate("no_record_found"), []);
+  }
+} // end of getAllAudiosDetails
+
 
 module.exports.getAllSendMessage = async (req, res, next) => {
   //status: constants.CONST_DB_STATUS_ACTIVE
@@ -43,9 +120,9 @@ module.exports.getAllSendMessage = async (req, res, next) => {
         as: "createBy_user_details",
       },
     },
+    { $sort: { campaign_date: -1 } },
     { $limit: skip + limit },
     { $skip: skip },
-    { $sort: { campaign_date: -1 } },
   ]);
   if (getList.length > 0) {
     getList.forEach(async (content) => {
@@ -99,6 +176,11 @@ module.exports.getAllSendMessage = async (req, res, next) => {
     return response.returnFalse(req, res, res.translate("no_record_found"), []);
   }
 };
+
+
+
+
+
 
 module.exports.getAllSendMessageOLD = async (req, res, next) => {
   //status: constants.CONST_DB_STATUS_ACTIVE
@@ -249,6 +331,37 @@ module.exports.getAllLetestMessage = async (req, res, next) => {
     return response.returnFalse(req, res, res.translate("no_record_found"), []);
   }
 };
+
+module.exports.getUserAudios = async (req, res, next) => {
+  const audioList = await AudioFile.find({
+    uploaded_by: req.user.id,
+  }, { _id: false })
+    .sort({ upload_date: -1 });;
+
+  return response.returnTrue(
+    req,
+    res,
+    "records_found",
+    audioList
+  );
+}
+
+
+module.exports.getUserApprovedAudios = async (req, res, next) => {
+
+  const audioList = await AudioFile
+    .find({ uploaded_by: req.user.id, status: "approved" }, { _id: 0, audio_id: 1, audio_file_display_name: 1 })
+    .sort({ upload_date: -1 });
+
+  return response.returnTrue(
+    req,
+    res,
+    "records_found",
+    audioList
+  );
+}
+
+
 module.exports.getAllUserSendMessage = async (req, res, next) => {
   //status: constants.CONST_DB_STATUS_ACTIVE
   // const getList = await SendMessage.find();
@@ -265,7 +378,6 @@ module.exports.getAllUserSendMessage = async (req, res, next) => {
         // role: constants.CONST_USER_ROLE_STUDENT.toString(),
       },
     },
-
     {
       $lookup: {
         from: "users",
@@ -274,9 +386,9 @@ module.exports.getAllUserSendMessage = async (req, res, next) => {
         as: "createBy_user_details",
       },
     },
-
     { $sort: { SendMessageId: -1 } },
   ]);
+
   if (getList.length > 0) {
     getList.forEach(async (content) => {
       let report = [];
@@ -306,6 +418,11 @@ module.exports.getAllUserSendMessage = async (req, res, next) => {
       });
       content.report = ReportArray;
     });
+
+
+    console.log(getList);
+
+
     return response.returnTrue(
       req,
       res,
@@ -316,11 +433,48 @@ module.exports.getAllUserSendMessage = async (req, res, next) => {
     return response.returnFalse(req, res, res.translate("no_record_found"), []);
   }
 };
+
+module.exports.getAudioApproval = async (req, res, next) => {
+  try {
+    var data = {}
+    data.audio_file_display_name = req.body.fileName || req.file.originalname;
+    data.audio_file = process.env.AUDIO_PATH + req.file.filename;
+    data.status = "pending";
+    data.uploaded_by = req.user.id;
+    data.upload_date = new Date().toLocaleString("en-US", { timeZone: "Asia/Calcutta" });
+    var af = new AudioFile(data);
+    af.save()
+      .then((success) => {
+        console.log(success);
+        response.returnTrue(req, res, "audio file uploaded successfully !! ");
+      })
+      .catch((failure) => {
+        var msg = "failed to upload audio file !!";
+        if (failure.code == 11000) {
+          fs.unlink("./audio_files/" + req.file.filename, (err) => {
+            if (err)
+              console.log(err)
+            else
+              console.log("file removed sucessfully");
+          });
+          msg = "file with same name already exists !!!";
+        }//end of if 
+        response.returnFalse(req, res, msg);
+      });
+  }
+  catch (err) {
+    response.returnFalse(req, res, "failed to upload audio file !!");
+  }
+
+}//end of getAudioApproval
+
+
 module.exports.addSendMessage = async (req, res, next) => {
   try {
     let v = new Validator(req.body, {
-      msg_count: "required",
       contact_no: "required",
+      msg_count: "required",
+      audio_id : "required"
     });
     let matched = await v.check();
     if (!matched) {
@@ -348,50 +502,15 @@ module.exports.addSendMessage = async (req, res, next) => {
       return response.returnFalse(req, res, "your daily limit has been cross");
     }
 
-    // https://obd37.sarv.com/api/voice/voice_broadcast.php?username=u14311&token=1JcpOU&plan_id=32782&announcement_id=444777&caller_id=8305453647&contact_numbers=
-    // 8305453647&retry_json={"FNA":"1","FBZ":0,"FCG":"2","FFL":"1"}&dtmf_wait=1&dtmf_wait_time=1
+    //check audio approval status 
+    let fetchedAudio = await AudioFile.findOne({ uploaded_by : req.user.id , audio_id : req.body.audio_id , status : "approved"});
+    
+    if(!fetchedAudio){
+      return response.returnFalse(req, res, "invalid audio" )
+    }
 
-    // https://obd37.sarv.com/api/voice/upload_announcement.php?username=u14311&token=1JcpOU&announcement_path=
-    // https://file-examples.com/storage/fe7bb0e37864d66f29c40ee/2017/11/file_example_MP3_700KB.mp3
-
-    //     let username = "u14311";
-    //     let token = "1JcpOU";
-    //     let audio_file =
-    //       "https://file-examples.com/storage/fe7bb0e37864d66f29c40ee/2017/11/file_example_MP3_700KB.mp3";
-    //     const options = {
-    //       hostname: `https://obd37.sarv.com/api/voice/upload_announcement.php?username=${username}&token=${token}&announcement_path=${audio_file}`,
-
-    //       method: "GET",
-    //       headers: {
-    //         "Content-Type": "application/json",
-    //       },
-    //     };
-
-    //     const request = http.request(options, (response) => {
-    //       // Set the encoding, so we don't get log to the console a bunch of gibberish binary data
-    //       response.setEncoding("utf8");
-
-    //       // As data starts streaming in, add each chunk to "data"
-    //       response.on("data", (chunk) => {
-    //         data += chunk;
-    //       });
-
-    //       // The whole response has been received. Print out the result.
-    //       response.on("end", () => {
-    //         console.log(data);
-    //       });
-    //     });
-
-    //     // Log errors if any occur
-    //     request.on("error", (error) => {
-    //       console.error(error);
-    //     });
-
-    //     // End the request
-    //     request.end();
-    // return;
     req.body.create_by = req.user.id;
-    req.body.audio_file = process.env.IMAGE_PATH + req.file.filename;
+    req.body.audio_file = fetchedAudio.audio_file ;  
     // req.body.slug = slugify(req.body.name);
     let contact_number = req.body.contact_no;
     let contactNo = (req.body.contact_no = contact_number.split(/\r\n/)); ///\r|\r\n|\n/
@@ -426,14 +545,20 @@ module.exports.addSendMessage = async (req, res, next) => {
         }
       );
       let contact_numbers = req.body.contact_no;
-      let username = "u14311";
-      let token = "1JcpOU";
+  
       let audio_file = req.body.audio_file; //"https://file-examples.com/storage/fe7bb0e37864d66f29c40ee/2017/11/file_example_MP3_700KB.mp3"; //"https://api.voiceblaster.co.in/images/1696676029423.mp3";//
       // console.log("audio_file", audio_file);
-      const res1 = await axios.get(
-        `https://obd37.sarv.com/api/voice/upload_announcement.php?username=${username}&token=${token}&announcement_path=${audio_file}`
-      );
-      console.log("res", res1.data);
+      
+      //----------- commented - because servise is temporary unavailable
+      // let username = "u14311";
+      // let token = "1JcpOU";
+      // const res1 = await axios.get(
+      //   `https://obd37.sarv.com/api/voice/upload_announcement.php?username=${username}&token=${token}&announcement_path=${audio_file}`
+      // );
+      // console.log("res", res1.data);
+      //----------- commented - because servise is temporary unavailable
+      
+      
       // await ContactNumber.insertMany([...req.body.contact_no].map((item)=>{
       const WhiteListNo = (
         await WhiteList.find({
@@ -486,10 +611,8 @@ module.exports.addSendMessage = async (req, res, next) => {
         //  console.log("WhiteListNum", WhiteListNumbers);
       }
       console.log("contactNo1", req.body.contact_no);
-
       req.body.contact_no = contactNo;
       console.log("contactNo2", req.body.contact_no);
-
       // console.log("res", res1.data.data[0].announcement_id);
       const sendMsg = new SendMessage(req.body);
       await sendMsg.save();
