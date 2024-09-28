@@ -385,7 +385,7 @@ router.put(
 
 // File upload for notifications
 const notificationStorage = multer.diskStorage({
-  destination: "./uploads/notifications",
+  destination: "./images",
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   },

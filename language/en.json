@@ -94,5 +94,6 @@
 	"you_are_already_done_setup_fee": "You are already done setup fee",
 	"you_are_already_add_this_product": "you_are_already_add_this_product",
 	"update_error": "update_error",
-	"insufficient_balance":"insufficient balance"
+	"insufficient_balance": "insufficient balance",
+	"token_expired": "token_expired"
 }

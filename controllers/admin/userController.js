@@ -97,15 +97,45 @@ module.exports.getAll = async (req, res, next) => {
 //dashboard
 
 module.exports.getDashboardCount = async (req, res, next) => {
+  const today = new Date();
+  const startOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  );
+  const endOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() + 1
+  );
+
+  // Get the start and end of the current month
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of the month
+
   try {
     const getUsers = await User.find({ role: "1" });
     const getReseller = await User.find({ role: "2" });
-    const getComping = await SendMessage.find();
+    // Get today's comping entries
+    const getTodayComping = await SendMessage.find({
+      createdAt: {
+        $gte: startOfDay.toLocaleDateString(),
+        $lt: endOfDay.toLocaleDateString(),
+      },
+    });
+
+    // Get the count of all entries for the current month
+    const getMonthComping = await SendMessage.find({
+      createdAt: {
+        $gte: startOfMonth.toLocaleDateString(),
+        $lt: endOfMonth.toLocaleDateString(),
+      },
+    });
     let obj = {
       users: getUsers.length > 0 ? getUsers.length : 0,
       reseller: getReseller.length > 0 ? getReseller.length : 0,
-      comping: getComping.length > 0 ? getComping.length : 0,
-      MonthComping: getComping.length > 0 ? getComping.length : 0,
+      comping: getTodayComping.length > 0 ? getTodayComping.length : 0,
+      MonthComping: getMonthComping.length > 0 ? getMonthComping.length : 0,
     };
     // if (getList.length > 0) {
     return response.returnTrue(req, res, res.translate("record_found"), obj);
@@ -119,40 +149,70 @@ module.exports.getDashboardCount = async (req, res, next) => {
     );
   }
 };
-
 module.exports.getuserDashboardCount = async (req, res, next) => {
+  const today = new Date();
+  const startOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  );
+  const endOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() + 1
+  );
+
+  // Get the start and end of the current month
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of the month
+
   try {
-    console.log("testing==>", req.user.id);
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
+    // Fetch users and resellers created by this user
     const getUsers = await User.find({
       role: "1",
-      create_by: new mongoose.Types.ObjectId(req.user.id),
-    });
-    const getReseller = await User.find({
-      role: "2",
-      create_by: new mongoose.Types.ObjectId(req.user.id),
-    });
-    const getComping = await SendMessage.find({
-      create_by: new mongoose.Types.ObjectId(req.user.id),
-    });
-    const MonthComping = await SendMessage.find({
-      create_by: new mongoose.Types.ObjectId(req.user.id),
+      create_by: userId,
     });
 
+    const getReseller = await User.find({
+      role: "2",
+      create_by: userId,
+    });
+
+    // Get today's comping entries
+    const getTodayComping = await SendMessage.find({
+      create_by: userId,
+      createdAt: {
+        $gte: startOfDay.toLocaleDateString(),
+        $lt: endOfDay.toLocaleDateString(),
+      },
+    });
+
+    // Get the count of all entries for the current month
+    const getMonthComping = await SendMessage.find({
+      create_by: userId,
+      createdAt: {
+        $gte: startOfMonth.toLocaleDateString(),
+        $lt: endOfMonth.toLocaleDateString(),
+      },
+    });
+
+    // Get total transactions
     const totalTransaction = await Transaction.find({
-      user: new mongoose.Types.ObjectId(req.user.id),
+      user: userId,
     });
 
     let obj = {
       users: getUsers.length > 0 ? getUsers.length : 0,
       reseller: getReseller.length > 0 ? getReseller.length : 0,
-      comping: getComping.length > 0 ? getComping.length : 0,
-      MonthComping: MonthComping.length > 0 ? MonthComping.length : 0,
+      comping: getTodayComping.length > 0 ? getTodayComping.length : 0,
+      MonthComping: getMonthComping.length > 0 ? getMonthComping.length : 0,
       totalTransaction:
         totalTransaction.length > 0 ? totalTransaction.length : 0,
     };
-    // if (getList.length > 0) {
+
     return response.returnTrue(req, res, res.translate("record_found"), obj);
-    // }
   } catch (e) {
     return response.returnFalse(
       req,
@@ -162,6 +222,7 @@ module.exports.getuserDashboardCount = async (req, res, next) => {
     );
   }
 };
+
 
 module.exports.getUserAll = async (req, res, next) => {
   let v;
