@@ -22,6 +22,7 @@ const websiteInfo = require("../controllers/admin/websiteInfo");
 // const bannerController = require("../controllers/admin/bannerController");
 // const testimonialController = require("../controllers/admin/testimonialController");
 const supportController = require("../controllers/admin/supportController");
+const notificationAlertController = require("../controllers/admin/notificationAlertController");
 
 const notesController = require("../controllers/admin/notesController");
 
@@ -380,6 +381,35 @@ router.put(
   contactGroupController.updateContactGroup
 );
 
-//contactGroup
+//Notification Alert
+
+// File upload for notifications
+const notificationStorage = multer.diskStorage({
+  destination: "./uploads/notifications",
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const uploadNotification = multer({ storage: notificationStorage });
+
+router.post(
+  "/addNotification",
+  authMiddleWare.adminAuthentication,
+  uploadNotification.single("image"),
+  notificationAlertController.addNotification
+);
+
+router.get(
+  "/getNotifications",
+  authMiddleWare.authenticateToken,
+  notificationAlertController.getNotifications
+);
+
+router.delete(
+  "/deleteNotification/:id",
+  authMiddleWare.adminAuthentication,
+  notificationAlertController.deleteNotification
+);
 
 module.exports = router;
